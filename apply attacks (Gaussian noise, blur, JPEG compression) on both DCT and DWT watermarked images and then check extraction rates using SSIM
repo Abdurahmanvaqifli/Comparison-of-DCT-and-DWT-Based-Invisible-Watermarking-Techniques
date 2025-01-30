@@ -1,0 +1,61 @@
+import cv2
+import numpy as np
+from skimage.metrics import structural_similarity as ssim
+from google.colab.patches import cv2_imshow
+
+# Paths for images
+DCT_WATERMARKED_IMAGE_PATH = '/content/dct_watermarked_image.jpeg'
+DWT_WATERMARKED_IMAGE_PATH = '/content/dwt_watermarked_image.jpeg'
+OUTPUT_DCT_ATTACKED = '/content/dct_attacked.jpeg'
+OUTPUT_DWT_ATTACKED = '/content/dwt_attacked.jpeg'
+EXTRACTED_DCT_WATERMARK = '/content/dct_extracted_after_attack.jpeg'
+EXTRACTED_DWT_WATERMARK = '/content/dwt_extracted_after_attack.jpeg'
+
+# Function to apply attacks
+def apply_attack(image_path, output_path, attack_type):
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise ValueError("Error loading image.")
+    
+    if attack_type == "gaussian_noise":
+        noise = np.random.normal(0, 25, image.shape).astype(np.uint8)
+        attacked = cv2.add(image, noise)
+    elif attack_type == "gaussian_blur":
+        attacked = cv2.GaussianBlur(image, (5, 5), 0)
+    elif attack_type == "jpeg_compression":
+        cv2.imwrite(output_path, image, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
+        attacked = cv2.imread(output_path, cv2.IMREAD_GRAYSCALE)
+    else:
+        raise ValueError("Unknown attack type.")
+    
+    cv2.imwrite(output_path, attacked)
+    cv2_imshow(attacked)
+    return attacked
+
+# Function to check extraction rate
+def check_extraction(original_watermark_path, extracted_watermark_path):
+    original = cv2.imread(original_watermark_path, cv2.IMREAD_GRAYSCALE)
+    extracted = cv2.imread(extracted_watermark_path, cv2.IMREAD_GRAYSCALE)
+    
+    if original is None or extracted is None:
+        raise ValueError("Error loading watermark images.")
+    
+    ssim_value = ssim(original, extracted)
+    print(f"Extraction SSIM: {ssim_value:.4f}")
+    return ssim_value
+
+# Run attacks and check extraction rates
+if __name__ == "__main__":
+    print("Applying attacks on DCT watermarked image...")
+    apply_attack(DCT_WATERMARKED_IMAGE_PATH, OUTPUT_DCT_ATTACKED, "gaussian_noise")
+    apply_attack(DCT_WATERMARKED_IMAGE_PATH, OUTPUT_DCT_ATTACKED, "gaussian_blur")
+    apply_attack(DCT_WATERMARKED_IMAGE_PATH, OUTPUT_DCT_ATTACKED, "jpeg_compression")
+    
+    print("Applying attacks on DWT watermarked image...")
+    apply_attack(DWT_WATERMARKED_IMAGE_PATH, OUTPUT_DWT_ATTACKED, "gaussian_noise")
+    apply_attack(DWT_WATERMARKED_IMAGE_PATH, OUTPUT_DWT_ATTACKED, "gaussian_blur")
+    apply_attack(DWT_WATERMARKED_IMAGE_PATH, OUTPUT_DWT_ATTACKED, "jpeg_compression")
+    
+    print("Checking extraction rates after attacks...")
+    check_extraction('/content/Watermark.png', EXTRACTED_DCT_WATERMARK)
+    check_extraction('/content/Watermark.png', EXTRACTED_DWT_WATERMARK)
