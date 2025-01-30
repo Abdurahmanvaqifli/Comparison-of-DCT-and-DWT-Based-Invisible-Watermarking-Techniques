@@ -1,0 +1,38 @@
+import cv2
+import numpy as np
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import mean_squared_error as mse
+
+# Paths for images
+ORIGINAL_IMAGE_PATH = '/content/image.jpeg'  # Path to original image
+DCT_WATERMARKED_IMAGE_PATH = '/content/dct_watermarked_image.jpeg'  # Path to DCT watermarked image
+DWT_WATERMARKED_IMAGE_PATH = '/content/dwt_watermarked_image.jpeg'  # Path to DWT watermarked image
+
+# Function to compute SSIM, PSNR, and MSE
+def compute_quality_metrics(original_path, watermarked_path, method):
+    # Load images
+    original = cv2.imread(original_path, cv2.IMREAD_GRAYSCALE)
+    watermarked = cv2.imread(watermarked_path, cv2.IMREAD_GRAYSCALE)
+    
+    if original is None or watermarked is None:
+        raise ValueError("Error loading images.")
+    
+    # Compute metrics
+    ssim_value = ssim(original, watermarked)
+    psnr_value = psnr(original, watermarked)
+    mse_value = mse(original, watermarked)
+    
+    # Print results
+    print(f"{method} - SSIM: {ssim_value:.4f}")
+    print(f"{method} - PSNR: {psnr_value:.2f} dB")
+    print(f"{method} - MSE: {mse_value:.4f}")
+    
+    return ssim_value, psnr_value, mse_value
+
+# Run quality check for both DCT and DWT
+if __name__ == "__main__":
+    print("Evaluating DCT Watermarked Image:")
+    compute_quality_metrics(ORIGINAL_IMAGE_PATH, DCT_WATERMARKED_IMAGE_PATH, "DCT")
+    print("\nEvaluating DWT Watermarked Image:")
+    compute_quality_metrics(ORIGINAL_IMAGE_PATH, DWT_WATERMARKED_IMAGE_PATH, "DWT")
