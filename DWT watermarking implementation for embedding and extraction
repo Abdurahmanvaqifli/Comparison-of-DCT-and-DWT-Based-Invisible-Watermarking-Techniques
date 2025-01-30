@@ -1,0 +1,64 @@
+import numpy as np
+import cv2
+import pywt
+from google.colab.patches import cv2_imshow  # For Colab compatibility
+
+# Paths for input images
+IMAGE_PATH = '/content/image.jpeg'  # Path to original image
+WATERMARK_PATH = '/content/Watermark.png'  # Path to watermark image
+OUTPUT_WATERMARKED = '/content/dwt_watermarked_image.jpeg'  # Output watermarked image
+OUTPUT_EXTRACTED = '/content/dwt_extracted_watermark.jpeg'  # Extracted watermark
+
+# Function to embed watermark using DWT
+def embed_watermark(image_path, watermark_path, alpha=10):
+    # Load images
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    watermark = cv2.imread(watermark_path, cv2.IMREAD_GRAYSCALE)
+    
+    if image is None or watermark is None:
+        raise ValueError("Error loading image or watermark.")
+    
+    # Resize watermark to match LL sub-band size
+    coeffs_image = pywt.dwt2(image, 'haar')
+    LL, (LH, HL, HH) = coeffs_image
+    wm_resized = cv2.resize(watermark, (LL.shape[1], LL.shape[0]))
+    
+    # Embed watermark in LL sub-band
+    LL_wm = LL + alpha * wm_resized.astype(np.float32)
+    
+    # Reconstruct watermarked image
+    watermarked_image = pywt.idwt2((LL_wm, (LH, HL, HH)), 'haar')
+    watermarked_image = np.clip(watermarked_image, 0, 255).astype(np.uint8)
+    
+    # Save and display
+    cv2.imwrite(OUTPUT_WATERMARKED, watermarked_image)
+    cv2_imshow(watermarked_image)  # Show image in Colab
+    return watermarked_image
+
+# Function to extract watermark using DWT
+def extract_watermark(watermarked_image_path, watermark_shape, alpha=10):
+    # Load watermarked image
+    watermarked_image = cv2.imread(watermarked_image_path, cv2.IMREAD_GRAYSCALE)
+    
+    if watermarked_image is None:
+        raise ValueError("Error loading watermarked image.")
+    
+    # Perform DWT on watermarked image
+    coeffs_watermarked = pywt.dwt2(watermarked_image, 'haar')
+    LL_wm, (LH, HL, HH) = coeffs_watermarked
+    
+    # Extract watermark from LL sub-band
+    extracted_wm = (LL_wm - pywt.dwt2(cv2.imread(IMAGE_PATH, cv2.IMREAD_GRAYSCALE), 'haar')[0]) / alpha
+    extracted_wm = cv2.resize(extracted_wm, (watermark_shape[1], watermark_shape[0]))
+    extracted_wm = np.clip(extracted_wm, 0, 255).astype(np.uint8)
+    
+    # Save and display
+    cv2.imwrite(OUTPUT_EXTRACTED, extracted_wm)
+    cv2_imshow(extracted_wm)
+    return extracted_wm
+
+# Run embedding and extraction
+if __name__ == "__main__":
+    watermarked_img = embed_watermark(IMAGE_PATH, WATERMARK_PATH)
+    watermark_shape = (watermarked_img.shape[0] // 2, watermarked_img.shape[1] // 2)
+    extract_watermark(OUTPUT_WATERMARKED, watermark_shape)
