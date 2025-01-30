@@ -1,0 +1,79 @@
+import numpy as np
+import cv2
+import os
+from scipy.fftpack import dct, idct
+from google.colab.patches import cv2_imshow  # For Colab compatibility
+
+# Paths for input images
+IMAGE_PATH = '/content/image.jpeg'  # Path to original image
+WATERMARK_PATH = '/content/Watermark.png'  # Path to watermark image
+OUTPUT_WATERMARKED = '/content/dct_watermarked_image.jpeg'  # Output watermarked image
+OUTPUT_EXTRACTED = '/content/dct_extracted_watermark.jpeg'  # Extracted watermark
+
+# Function to apply block-wise DCT
+def apply_dct(block):
+    return dct(dct(block.T, norm='ortho').T, norm='ortho')
+
+# Function to apply block-wise inverse DCT
+def apply_idct(block):
+    return idct(idct(block.T, norm='ortho').T, norm='ortho')
+
+# Function to embed watermark into image
+def embed_watermark(image_path, watermark_path, alpha=10):
+    # Load images
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    watermark = cv2.imread(watermark_path, cv2.IMREAD_GRAYSCALE)
+    
+    if image is None or watermark is None:
+        raise ValueError("Error loading image or watermark.")
+    
+    # Resize watermark to fit inside the image
+    wm_resized = cv2.resize(watermark, (image.shape[1] // 8, image.shape[0] // 8))
+    
+    # Convert image to float
+    image = np.float32(image)
+    wm_resized = np.float32(wm_resized)
+    
+    # Process image block-wise
+    watermarked_image = np.zeros_like(image)
+    for i in range(0, image.shape[0], 8):
+        for j in range(0, image.shape[1], 8):
+            block = image[i:i+8, j:j+8]
+            dct_block = apply_dct(block)
+            dct_block[4, 4] += alpha * wm_resized[i//8, j//8]  # Embedding watermark in frequency domain
+            watermarked_image[i:i+8, j:j+8] = apply_idct(dct_block)
+    
+    # Save and display
+    cv2.imwrite(OUTPUT_WATERMARKED, np.uint8(watermarked_image))
+    cv2_imshow(watermarked_image)  # Show image in Colab
+    return watermarked_image
+
+# Function to extract watermark from the watermarked image
+def extract_watermark(watermarked_image_path, watermark_shape, alpha=10):
+    # Load watermarked image
+    watermarked_image = cv2.imread(watermarked_image_path, cv2.IMREAD_GRAYSCALE)
+    
+    if watermarked_image is None:
+        raise ValueError("Error loading watermarked image.")
+    
+    # Convert to float and extract watermark block-wise
+    watermarked_image = np.float32(watermarked_image)
+    extracted_wm = np.zeros(watermark_shape, dtype=np.float32)
+    
+    for i in range(0, watermarked_image.shape[0], 8):
+        for j in range(0, watermarked_image.shape[1], 8):
+            block = watermarked_image[i:i+8, j:j+8]
+            dct_block = apply_dct(block)
+            extracted_wm[i//8, j//8] = dct_block[4, 4] / alpha  # Extracting watermark from frequency domain
+    
+    # Normalize and save
+    extracted_wm = np.uint8(cv2.normalize(extracted_wm, None, 0, 255, cv2.NORM_MINMAX))
+    cv2.imwrite(OUTPUT_EXTRACTED, extracted_wm)
+    cv2_imshow(extracted_wm)
+    return extracted_wm
+
+# Run embedding and extraction
+if __name__ == "__main__":
+    watermarked_img = embed_watermark(IMAGE_PATH, WATERMARK_PATH)
+    watermark_shape = (watermarked_img.shape[0] // 8, watermarked_img.shape[1] // 8)
+    extract_watermark(OUTPUT_WATERMARKED, watermark_shape)
